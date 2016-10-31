@@ -5,10 +5,22 @@ var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
 
+var firebase = require('firebase');
+var fs = require('fs');
+var readline = require('readline');
+var google = require('googleapis');
+var googleAuth = require('google-auth-library');
+
 var routes = require('./routes/index');
 var users = require('./routes/users');
 
 var app = express();
+
+// Initialize the app with a service account
+firebase.initializeApp({
+    databaseURL: "https://alrmup-ae85a.firebaseio.com/",
+    serviceAccount: "keys/alrmup-d5e0526322d2.json"
+});
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
@@ -55,6 +67,65 @@ app.use(function(err, req, res, next) {
     error: {}
   });
 });
+
+var db = firebase.database();
+var usersRef = db.ref("users");
+
+
+setInterval(userLoop, 1000);
+
+//loop on users
+function userLoop(){
+    usersRef.once('value', function (snapshot) {
+        snapshot.forEach(function (childSnapshot) {
+            var user = childSnapshot.key;
+            var token = childSnapshot.child('token').val();
+            updateEvents(authToken(token, user), user);
+        })
+    });
+}
+
+//creates oauth2Client 
+function authToken(token, user) {
+    var data = fs.readFileSync('keys/client_secret.json');
+    var credentials = JSON.parse(data);
+    var clientSecret = credentials.installed.client_secret;
+    var clientId = credentials.installed.client_id;
+    var redirectUrl = credentials.installed.redirect_uris[0];
+    var auth = new googleAuth();
+    var oauth2Client = new auth.OAuth2(clientId, clientSecret, redirectUrl);
+    oauth2Client.credentials = token;
+    return oauth2Client;
+}
+
+//updates user's events
+function updateEvents(auth, user) {
+    var calendar = google.calendar('v3');
+    calendar.events.list({
+        auth: auth,
+        calendarId: 'primary',
+        timeMin: (new Date()).toISOString(),
+        maxResults: 20,
+        singleEvents: true,
+        orderBy: 'startTime'
+    }, function (err, response) {
+        if (err) {
+            console.log('The API returned an error: ' + err);
+            return;
+        }
+        var events = response.items;
+        if (events.length == 0) {
+            console.log('No upcoming events found.');
+        } else {
+            console.log('Pushed ' + user + ' events to Firebase');
+            var userRef = usersRef.child(user);
+            userRef.update({
+                events: events,
+            });
+
+        }
+    });
+}
 
 
 module.exports = app;
