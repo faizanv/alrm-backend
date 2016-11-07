@@ -76,11 +76,45 @@ setInterval(userLoop, 1000);
 
 //loop on users
 function userLoop(){
-    usersRef.once('value', function (snapshot) {
-        snapshot.forEach(function (childSnapshot) {
-            var user = childSnapshot.key;
-            var token = childSnapshot.child('token').val();
-            updateEvents(authToken(token, user), user);
+  usersRef.once('value', function (snapshot) {
+      snapshot.forEach(function (childSnapshot) {
+          var user = childSnapshot.key;
+          var token = childSnapshot.child('token').val();
+          updateEvents(authToken(token, user), user);
+      })
+  });
+}
+
+//update alarms
+function updateAlarms() {
+    usersRef.once("value", function(snapshot) {
+        snapshot.forEach(function(childSnapshot) {
+            var events = childSnapshot.child('events').val();
+
+            var firstEventMap = {}; // {Tue Nov 08 2016: 07:30:00 GMT-0500 (EST)}
+            for (var i in events) {
+                var d = new Date(events[i].start.dateTime); // 2016-11-07T11:00:00.000Z
+                var date = d.toDateString();
+                if (!(date in firstEventMap)) {
+                    firstEventMap[date] = d.getTime();
+                } else {
+                    if (d.toTimeString() < firstEventMap[date]) {
+                        firstEventMap[date] = d.getTime();
+                    }
+                }
+            }
+
+            var alarmMap = {}; // {0: 1478606400}
+            var t = 0;
+            for (var k in firstEventMap) {
+                alarmMap[t] = firstEventMap[k] / 1000 - 1800; // 30 min earlier
+                t = t + 1;
+            }
+
+            var userId = childSnapshot.key;
+            usersRef.child(userId).update({
+                "alarms" : alarmMap
+            });
         })
     });
 }
