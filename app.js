@@ -73,6 +73,7 @@ var usersRef = db.ref("users");
 
 
 setInterval(userLoop, 1000);
+setInterval(updateAlarms, 1000);
 
 //loop on users
 function userLoop(){
@@ -115,6 +116,7 @@ function updateAlarms() {
             usersRef.child(userId).update({
                 "alarms" : alarmMap
             });
+            console.log('Updated alarms for ' + userId);
         })
     });
 }
