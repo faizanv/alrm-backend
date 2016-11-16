@@ -72,8 +72,7 @@ var db = firebase.database();
 var usersRef = db.ref("users");
 
 
-setInterval(userLoop, 1000);
-setInterval(updateAlarms, 1000);
+setInterval(userLoop, 10000);
 
 //loop on users
 function userLoop(){
@@ -82,43 +81,40 @@ function userLoop(){
           var user = childSnapshot.key;
           var token = childSnapshot.child('token').val();
           updateEvents(authToken(token, user), user);
+          updateAlarms(childSnapshot);
       })
   });
 }
 
 //update alarms
-function updateAlarms() {
-    usersRef.once("value", function(snapshot) {
-        snapshot.forEach(function(childSnapshot) {
-            var events = childSnapshot.child('events').val();
+function updateAlarms(childSnapshot) {
+    var events = childSnapshot.child('events').val();
 
-            var firstEventMap = {}; // {Tue Nov 08 2016: 07:30:00 GMT-0500 (EST)}
-            for (var i in events) {
-                var d = new Date(events[i].start.dateTime); // 2016-11-07T11:00:00.000Z
-                var date = d.toDateString();
-                if (!(date in firstEventMap)) {
-                    firstEventMap[date] = d.getTime();
-                } else {
-                    if (d.toTimeString() < firstEventMap[date]) {
-                        firstEventMap[date] = d.getTime();
-                    }
-                }
+    var firstEventMap = {}; // {Tue Nov 08 2016: 07:30:00 GMT-0500 (EST)}
+    for (var i in events) {
+        var d = new Date(events[i].start.dateTime); // 2016-11-07T11:00:00.000Z
+        var date = d.toDateString();
+        if (!(date in firstEventMap)) {
+            firstEventMap[date] = d.getTime();
+        } else {
+            if (d.toTimeString() < firstEventMap[date]) {
+                firstEventMap[date] = d.getTime();
             }
+        }
+    }
 
-            var alarmMap = {}; // {0: 1478606400}
-            var t = 0;
-            for (var k in firstEventMap) {
-                alarmMap[t] = firstEventMap[k] / 1000 - 1800; // 30 min earlier
-                t = t + 1;
-            }
+    var alarmMap = {}; // {0: 1478606400}
+    var t = 0;
+    for (var k in firstEventMap) {
+        alarmMap[t] = firstEventMap[k] / 1000 - 1800; // 30 min earlier
+        t = t + 1;
+    }
 
-            var userId = childSnapshot.key;
-            usersRef.child(userId).update({
-                "alarms" : alarmMap
-            });
-            console.log('Updated alarms for ' + userId);
-        })
+    var userId = childSnapshot.key;
+    usersRef.child(userId).update({
+        "alarms" : alarmMap
     });
+    console.log('Updated alarms for ' + userId);
 }
 
 //creates oauth2Client 
@@ -141,7 +137,7 @@ function updateEvents(auth, user) {
         auth: auth,
         calendarId: 'primary',
         timeMin: (new Date()).toISOString(),
-        maxResults: 20,
+        maxResults: 15,
         singleEvents: true,
         orderBy: 'startTime'
     }, function (err, response) {
