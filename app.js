@@ -10,6 +10,8 @@ var fs = require('fs');
 var readline = require('readline');
 var google = require('googleapis');
 var googleAuth = require('google-auth-library');
+var map = require('google-distance-matrix');
+    map.key('AIzaSyD_dlCahiBPVwZgXoN8E94aONc1Iwt7Yn4');
 
 var routes = require('./routes/index');
 var users = require('./routes/users');
@@ -92,6 +94,12 @@ function updateAlarms() {
         snapshot.forEach(function(childSnapshot) {
             var events = childSnapshot.child('events').val();
 
+            var location = childSnapshot.child('location').val();
+            var latitude = location.latitude;
+            var longitude = location.longitude;
+            var origin = [latitude + "," + longitude];
+            var destination = [events[0].location];
+
             var firstEventMap = {}; // {Tue Nov 08 2016: 07:30:00 GMT-0500 (EST)}
             for (var i in events) {
                 if(new Date(events[i].start.dateTime) != "Invalid Date") {
@@ -114,11 +122,32 @@ function updateAlarms() {
                 t = t + 1;
             }
 
-            var userId = childSnapshot.key;
-            usersRef.child(userId).update({
-                "alarms" : alarmMap
+
+            map.matrix(origin, destination, function (err, distance) {
+                var userId = childSnapshot.key;
+                if (err) {
+                    return console.log('Error');
+                }
+                if(distance.status == 'INVALID_REQUEST') {
+                    usersRef.child(userId).update({
+                        "alarms" : alarmMap
+                    });
+                    console.log('Updated alarms for ' + userId);
+                }
+                if (distance.status == 'OK') {
+                    if (distance.rows[0].elements[0].status == 'OK') {
+                        var time = distance.rows[0].elements[0].duration.value;
+                        alarmMap[0] = alarmMap[0] - time;
+
+                        usersRef.child(userId).update({
+                            "alarms" : alarmMap
+                        });
+                        console.log('Updated alarms for ' + userId);
+                    } else {
+                        console.log(destination + ' is not reachable by land from ' + origin);
+                    }
+                }
             });
-            console.log('Updated alarms for ' + userId);
         })
     });
 }
