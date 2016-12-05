@@ -12,6 +12,7 @@
     "ejs": "~2.3.3",
     "express": "^4.13.4",
     "firebase": "^3.6.1",
+    "forecast.io": "0.0.11",
     "fs": "0.0.1-security",
     "google-auth-library": "^0.9.9",
     "google-distance-matrix": "0.0.3",

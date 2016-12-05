@@ -13,6 +13,12 @@ var googleAuth = require('google-auth-library');
 var map = require('google-distance-matrix');
     map.key('AIzaSyD_dlCahiBPVwZgXoN8E94aONc1Iwt7Yn4');
 
+var DarkSky = require('forecast.io');
+var options = {
+  APIKey: 'af393f5254a36200a44815f72bf74f92',
+},
+darksky = new DarkSky(options);
+
 var routes = require('./routes/index');
 var users = require('./routes/users');
 
@@ -74,8 +80,8 @@ var db = firebase.database();
 var usersRef = db.ref("users");
 
 
-setInterval(userLoop, 1000);
-setInterval(updateAlarms, 1000);
+setInterval(userLoop, 10000);
+setInterval(updateAlarms, 10000);
 
 //loop on users
 function userLoop(){
@@ -122,7 +128,6 @@ function updateAlarms() {
                 t = t + 1;
             }
 
-
             map.matrix(origin, destination, function (err, distance) {
                 var userId = childSnapshot.key;
                 if (err) {
@@ -136,13 +141,27 @@ function updateAlarms() {
                 }
                 if (distance.status == 'OK') {
                     if (distance.rows[0].elements[0].status == 'OK') {
-                        var time = distance.rows[0].elements[0].duration.value;
-                        alarmMap[0] = alarmMap[0] - time;
+                        darksky.get('33.89692464', '-84.28230706', function (err, res, data) {
+                            if (err) throw err;
 
-                        usersRef.child(userId).update({
-                            "alarms" : alarmMap
+                            var time = distance.rows[0].elements[0].duration.value;
+                            if (data.daily.icon == 'rain'){
+                                console.log('Its raining');
+                                time += 1800;
+                            }
+                            if (data.daily.icon == 'snow' || data.daily.icon == 'sleet'){
+                                console.log('Its bad outside');
+                                time += 3600;
+                            }
+
+                            alarmMap[0] = alarmMap[0] - time;
+
+                            usersRef.child(userId).update({
+                                "alarms" : alarmMap
+                            });
+                            console.log('Updated alarms with traffic and weather for ' + userId);
+
                         });
-                        console.log('Updated alarms for ' + userId);
                     } else {
                         console.log(destination + ' is not reachable by land from ' + origin);
                     }
